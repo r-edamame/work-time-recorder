@@ -147,3 +147,25 @@ diff from to =
             hourDiff + carry
     in
     { hour = hour, minute = minute }
+
+
+addPeriod : Period -> Period -> Period
+addPeriod p1 p2 =
+    let
+        hourSum =
+            p1.hour + p2.hour
+
+        minuteSum =
+            p1.minute + p2.minute
+
+        ( minute, carry ) =
+            if minuteSum >= 60 then
+                ( modBy 60 minuteSum, 1 )
+
+            else
+                ( minuteSum, 0 )
+
+        hour =
+            hourSum + carry
+    in
+    { hour = hour, minute = minute }
