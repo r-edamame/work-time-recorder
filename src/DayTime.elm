@@ -12,6 +12,12 @@ type alias DayTime =
     }
 
 
+type alias Period =
+    { hour : Int
+    , minute : Int
+    }
+
+
 dayTimeRegex : Regex
 dayTimeRegex =
     Maybe.withDefault Regex.never <| Regex.fromString "^(\\d\\d):(\\d\\d)$"
@@ -119,3 +125,25 @@ show { hour, minute } =
             String.fromInt >> String.padLeft 2 '0'
     in
     String.join ":" <| List.map pad [ hour, minute ]
+
+
+diff : DayTime -> DayTime -> Period
+diff from to =
+    let
+        hourDiff =
+            to.hour - from.hour
+
+        minuteDiff =
+            to.minute - from.minute
+
+        ( minute, carry ) =
+            if minuteDiff < 0 then
+                ( modBy 60 minuteDiff, -1 )
+
+            else
+                ( minuteDiff, 0 )
+
+        hour =
+            hourDiff + carry
+    in
+    { hour = hour, minute = minute }
