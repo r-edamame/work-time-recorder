@@ -5,7 +5,8 @@ import DayTime exposing (DayTime)
 import Html exposing (Html, button, div, input, text)
 import Html.Attributes exposing (disabled, value)
 import Html.Events exposing (onClick, onInput)
-import Task exposing (perform)
+import Task exposing (Task, perform)
+import Tuple
 
 
 
@@ -13,10 +14,11 @@ import Task exposing (perform)
 
 
 type alias Model =
-    { log : List DayTime
+    { commandLog : List ( WorkCommand, DayTime )
     , rawTimeInput : String
     , error : Maybe String
     , workStatus : WorkStatus
+    , executingCommand : Maybe WorkCommand
     }
 
 
@@ -32,12 +34,9 @@ type WorkStatus
 
 
 type Msg
-    = AddLogReq
-    | AddLog (Maybe DayTime)
-    | AddRawTime
-    | ChangeRawTimeInput String
-    | ClearErrorMessage
+    = ClearErrorMessage
     | WorkCommand WorkCommand
+    | RecordTime (Result String ( WorkStatus, DayTime ))
 
 
 type WorkCommand
@@ -55,10 +54,11 @@ init : a -> ( Model, Cmd Msg )
 init _ =
     let
         model =
-            { log = []
+            { commandLog = []
             , rawTimeInput = ""
             , error = Nothing
             , workStatus = BeforeWork
+            , executingCommand = Nothing
             }
     in
     ( model, Cmd.none )
@@ -75,53 +75,50 @@ update msg model =
             perform identity <| Task.succeed ClearErrorMessage
     in
     case msg of
-        AddLogReq ->
-            ( model, perform AddLog DayTime.now )
-
-        AddLog time ->
-            let
-                newLogs =
-                    case time of
-                        Nothing ->
-                            model.log
-
-                        Just log ->
-                            log :: model.log
-            in
-            ( { model | log = newLogs }, clearError )
-
-        AddRawTime ->
-            case DayTime.parseDayTime model.rawTimeInput of
-                Ok time ->
-                    ( { model | log = time :: model.log, rawTimeInput = "" }, clearError )
-
-                Err message ->
-                    ( { model | error = Just message }, Cmd.none )
-
-        ChangeRawTimeInput input ->
-            ( { model | rawTimeInput = input }, Cmd.none )
-
         ClearErrorMessage ->
             ( { model | error = Nothing }, Cmd.none )
 
+        RecordTime res ->
+            case ( model.executingCommand, res ) of
+                ( Just cmd, Ok ( ws, dt ) ) ->
+                    ( { model | workStatus = ws, commandLog = ( cmd, dt ) :: model.commandLog, executingCommand = Nothing }, Cmd.none )
+
+                ( Just _, Err mes ) ->
+                    ( { model | error = Just mes, executingCommand = Nothing }, Cmd.none )
+
+                _ ->
+                    ( { model | executingCommand = Nothing, error = Just "unknown error" }, Cmd.none )
+
         WorkCommand command ->
-            updateWorkStatus command model
+            let
+                n : Task x (Result String DayTime)
+                n =
+                    Task.map (Result.fromMaybe "failed to get current time") DayTime.now
+
+                r : Task x (Result String ( WorkStatus, DayTime ))
+                r =
+                    Task.map (Result.map2 Tuple.pair <| updateWorkStatus model.workStatus command) n
+            in
+            ( { model | executingCommand = Just command }, perform RecordTime r )
 
 
-updateWorkStatus : WorkCommand -> Model -> ( Model, Cmd Msg )
-updateWorkStatus command model =
-    case command of
-        StartWork ->
-            ( { model | workStatus = Working }, Cmd.none )
+updateWorkStatus : WorkStatus -> WorkCommand -> Result String WorkStatus
+updateWorkStatus status command =
+    case ( status, command ) of
+        ( BeforeWork, StartWork ) ->
+            Ok Working
 
-        StartRest ->
-            ( { model | workStatus = Resting }, Cmd.none )
+        ( Working, StartRest ) ->
+            Ok Resting
 
-        ResumeWork ->
-            ( { model | workStatus = Working }, Cmd.none )
+        ( Resting, ResumeWork ) ->
+            Ok Working
 
-        FinishWork ->
-            ( { model | workStatus = AfterWork }, Cmd.none )
+        ( Working, FinishWork ) ->
+            Ok AfterWork
+
+        _ ->
+            Err "invalid workstate transition"
 
 
 
@@ -131,20 +128,31 @@ updateWorkStatus command model =
 view : Model -> Html Msg
 view model =
     div []
-        [ button [ onClick AddLogReq ] [ text "save now" ]
-        , viewCommandButton model.workStatus
-        , div []
-            [ input [ onInput ChangeRawTimeInput, value model.rawTimeInput ] []
-            , button [ onClick AddRawTime ] [ text "save" ]
-            ]
+        [ viewCommandButton model.workStatus
         , div [] [ text <| Maybe.withDefault "-" model.error ]
-        , div [] <| List.map viewTimeLog model.log
+        , div [] <| List.map viewWorkCommandLog model.commandLog
         ]
 
 
-viewTimeLog : DayTime -> Html Msg
-viewTimeLog time =
-    div [] [ text (DayTime.show time) ]
+commandName : WorkCommand -> String
+commandName command =
+    case command of
+        StartWork ->
+            "仕事開始"
+
+        StartRest ->
+            "休憩開始"
+
+        ResumeWork ->
+            "仕事再開"
+
+        FinishWork ->
+            "仕事終了"
+
+
+viewWorkCommandLog : ( WorkCommand, DayTime ) -> Html msg
+viewWorkCommandLog ( command, time ) =
+    div [] [ text (DayTime.show time ++ " -> " ++ commandName command) ]
 
 
 viewCommandButton : WorkStatus -> Html Msg
