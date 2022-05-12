@@ -80,14 +80,21 @@ validateDayTime h m =
             let
                 nextDay =
                     h < 7
+
+                hourConsideredDayOver =
+                    if nextDay then
+                        h + 24
+
+                    else
+                        h
             in
-            Ok { hour = h, minute = m, nextDay = nextDay }
+            Ok { hour = hourConsideredDayOver, minute = m, nextDay = nextDay }
 
 
-now : Task a DayTime
+now : Task a (Maybe DayTime)
 now =
     let
-        convert : Time.Zone -> Posix -> DayTime
+        convert : Time.Zone -> Posix -> Result String DayTime
         convert zone posix =
             let
                 hour =
@@ -95,19 +102,14 @@ now =
 
                 minute =
                     Time.toMinute zone posix
-
-                nextDay =
-                    hour < 7
             in
-            { hour = hour
-            , minute = minute
-            , nextDay = nextDay
-            }
+            validateDayTime hour minute
     in
     Task.map2
         convert
         Time.here
         Time.now
+        |> Task.andThen (Result.toMaybe >> Task.succeed)
 
 
 show : DayTime -> String

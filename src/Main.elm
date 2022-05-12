@@ -25,7 +25,7 @@ type alias Model =
 
 type Msg
     = AddLogReq
-    | AddLog DayTime
+    | AddLog (Maybe DayTime)
     | AddRawTime
     | ChangeRawTimeInput String
     | ClearErrorMessage
@@ -62,7 +62,16 @@ update msg model =
             ( model, perform AddLog DayTime.now )
 
         AddLog time ->
-            ( { model | log = time :: model.log }, clearError )
+            let
+                newLogs =
+                    case time of
+                        Nothing ->
+                            model.log
+
+                        Just log ->
+                            log :: model.log
+            in
+            ( { model | log = newLogs }, clearError )
 
         AddRawTime ->
             case DayTime.parseDayTime model.rawTimeInput of
