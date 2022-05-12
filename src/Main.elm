@@ -2,7 +2,8 @@ module Main exposing (..)
 
 import Browser
 import DayTime exposing (DayTime)
-import Html exposing (Html, button, div, input, text)
+import Debug exposing (todo)
+import Html exposing (Html, button, div, input, span, text)
 import Html.Attributes exposing (disabled, value)
 import Html.Events exposing (onClick, onInput)
 import Task exposing (Task, perform)
@@ -81,7 +82,7 @@ update msg model =
         RecordTime res ->
             case ( model.executingCommand, res ) of
                 ( Just cmd, Ok ( ws, dt ) ) ->
-                    ( { model | workStatus = ws, commandLog = ( cmd, dt ) :: model.commandLog, executingCommand = Nothing }, Cmd.none )
+                    ( { model | workStatus = ws, commandLog = List.append model.commandLog [ ( cmd, dt ) ], executingCommand = Nothing }, Cmd.none )
 
                 ( Just _, Err mes ) ->
                     ( { model | error = Just mes, executingCommand = Nothing }, Cmd.none )
@@ -130,8 +131,48 @@ view model =
     div []
         [ viewCommandButton model.workStatus
         , div [] [ text <| Maybe.withDefault "-" model.error ]
+        , div [] [ viewWorkingTime model ]
         , div [] <| List.map viewWorkCommandLog model.commandLog
         ]
+
+
+calculateWorkingTime : List ( WorkCommand, DayTime ) -> Result String DayTime.Period
+calculateWorkingTime commandLogs =
+    let
+        initPeriod =
+            { hour = 0, minute = 0 }
+
+        go : ( WorkStatus, DayTime, DayTime.Period ) -> List ( WorkCommand, DayTime ) -> Result String DayTime.Period
+        go ( status, prevTime, sum ) logs =
+            case logs of
+                [] ->
+                    if List.member status [ Resting, AfterWork ] then
+                        Ok sum
+
+                    else
+                        Err "working now"
+
+                ( command, time ) :: remains ->
+                    case updateWorkStatus status command of
+                        Ok next ->
+                            if List.member command [ StartRest, FinishWork ] then
+                                go ( next, time, DayTime.addPeriod sum <| DayTime.diff prevTime time ) remains
+
+                            else
+                                go ( next, time, sum ) remains
+
+                        Err _ ->
+                            Err "invalid workstatus transition"
+    in
+    case commandLogs of
+        [] ->
+            Ok initPeriod
+
+        ( StartWork, time ) :: remains ->
+            go ( Working, time, initPeriod ) remains
+
+        _ ->
+            Err "invalid command logs"
 
 
 commandName : WorkCommand -> String
@@ -153,6 +194,22 @@ commandName command =
 viewWorkCommandLog : ( WorkCommand, DayTime ) -> Html msg
 viewWorkCommandLog ( command, time ) =
     div [] [ text (DayTime.show time ++ " -> " ++ commandName command) ]
+
+
+viewWorkingTime : Model -> Html msg
+viewWorkingTime model =
+    case calculateWorkingTime model.commandLog of
+        Ok period ->
+            div []
+                [ span [] [ text "作業時間: " ]
+                , span [] [ text (DayTime.showPeriod period) ]
+                ]
+
+        Err message ->
+            div []
+                [ span [] [ text "エラー" ]
+                , span [] [ text message ]
+                ]
 
 
 viewCommandButton : WorkStatus -> Html Msg

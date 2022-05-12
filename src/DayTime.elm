@@ -127,6 +127,15 @@ show { hour, minute } =
     String.join ":" <| List.map pad [ hour, minute ]
 
 
+showPeriod : Period -> String
+showPeriod { hour, minute } =
+    let
+        pad =
+            String.fromInt >> String.padLeft 2 '0'
+    in
+    String.join ":" <| List.map pad [ hour, minute ]
+
+
 diff : DayTime -> DayTime -> Period
 diff from to =
     let
