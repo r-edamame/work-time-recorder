@@ -1,6 +1,6 @@
 module DayTime exposing (..)
 
-import Parser exposing ((|.), (|=))
+import Regex exposing (Regex)
 import Task exposing (Task)
 import Time exposing (Posix)
 
@@ -12,21 +12,49 @@ type alias DayTime =
     }
 
 
+dayTimeRegex : Regex
+dayTimeRegex =
+    Maybe.withDefault Regex.never <| Regex.fromString "^(\\d\\d):(\\d\\d)$"
+
+
 parseDayTime : String -> Result String DayTime
 parseDayTime src =
     let
-        parser =
-            Parser.succeed (\h m -> ( h, m ))
-                |= Parser.int
-                |. Parser.symbol ":"
-                |= Parser.int
-    in
-    case Parser.run parser src of
-        Err deadends ->
-            Err <| Parser.deadEndsToString deadends
+        parse s =
+            case Regex.find dayTimeRegex s of
+                [ { submatches } ] ->
+                    Ok submatches
 
-        Ok ( h, m ) ->
-            validateDayTime h m
+                _ ->
+                    Err "invalid time form"
+
+        invalidError =
+            Err "invalid form"
+    in
+    case parse src of
+        Ok [ Just h, Just m ] ->
+            let
+                mhour =
+                    String.toInt h
+
+                mminute =
+                    String.toInt m
+            in
+            case Maybe.map2 validateDayTime mhour mminute of
+                Just (Ok dt) ->
+                    Ok dt
+
+                Just (Err message) ->
+                    Err message
+
+                Nothing ->
+                    Err "number parse failed"
+
+        Ok _ ->
+            Err "unknown parse error"
+
+        Err mes ->
+            Err mes
 
 
 validateDayTime : Int -> Int -> Result String DayTime
