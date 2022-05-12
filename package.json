@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "elm-format ./src --yes"
+    "test": "elm-test",
+    "format": "elm-format ./src ./tests --yes"
   },
   "keywords": [],
   "author": "",
