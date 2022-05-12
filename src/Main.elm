@@ -3,7 +3,7 @@ module Main exposing (..)
 import Browser
 import DayTime exposing (DayTime)
 import Html exposing (Html, button, div, input, text)
-import Html.Attributes exposing (value)
+import Html.Attributes exposing (disabled, value)
 import Html.Events exposing (onClick, onInput)
 import Task exposing (perform)
 
@@ -16,7 +16,15 @@ type alias Model =
     { log : List DayTime
     , rawTimeInput : String
     , error : Maybe String
+    , workStatus : WorkStatus
     }
+
+
+type WorkStatus
+    = BeforeWork
+    | Working
+    | Resting
+    | AfterWork
 
 
 
@@ -29,6 +37,14 @@ type Msg
     | AddRawTime
     | ChangeRawTimeInput String
     | ClearErrorMessage
+    | WorkCommand WorkCommand
+
+
+type WorkCommand
+    = StartWork
+    | StartRest
+    | ResumeWork
+    | FinishWork
 
 
 
@@ -42,6 +58,7 @@ init _ =
             { log = []
             , rawTimeInput = ""
             , error = Nothing
+            , workStatus = BeforeWork
             }
     in
     ( model, Cmd.none )
@@ -87,6 +104,25 @@ update msg model =
         ClearErrorMessage ->
             ( { model | error = Nothing }, Cmd.none )
 
+        WorkCommand command ->
+            updateWorkStatus command model
+
+
+updateWorkStatus : WorkCommand -> Model -> ( Model, Cmd Msg )
+updateWorkStatus command model =
+    case command of
+        StartWork ->
+            ( { model | workStatus = Working }, Cmd.none )
+
+        StartRest ->
+            ( { model | workStatus = Resting }, Cmd.none )
+
+        ResumeWork ->
+            ( { model | workStatus = Working }, Cmd.none )
+
+        FinishWork ->
+            ( { model | workStatus = AfterWork }, Cmd.none )
+
 
 
 -- VIEW
@@ -96,6 +132,7 @@ view : Model -> Html Msg
 view model =
     div []
         [ button [ onClick AddLogReq ] [ text "save now" ]
+        , viewCommandButton model.workStatus
         , div []
             [ input [ onInput ChangeRawTimeInput, value model.rawTimeInput ] []
             , button [ onClick AddRawTime ] [ text "save" ]
@@ -108,6 +145,31 @@ view model =
 viewTimeLog : DayTime -> Html Msg
 viewTimeLog time =
     div [] [ text (DayTime.show time) ]
+
+
+viewCommandButton : WorkStatus -> Html Msg
+viewCommandButton status =
+    case status of
+        BeforeWork ->
+            div []
+                [ button [ onClick (WorkCommand StartWork) ] [ text "仕事開始" ]
+                ]
+
+        Working ->
+            div []
+                [ button [ onClick (WorkCommand StartRest) ] [ text "休憩" ]
+                , button [ onClick (WorkCommand FinishWork) ] [ text "仕事終了" ]
+                ]
+
+        Resting ->
+            div []
+                [ button [ onClick (WorkCommand ResumeWork) ] [ text "仕事再開" ]
+                ]
+
+        AfterWork ->
+            div []
+                [ button [ disabled True ] [ text "終了済み" ]
+                ]
 
 
 
