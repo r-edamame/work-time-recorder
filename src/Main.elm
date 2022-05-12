@@ -4,33 +4,76 @@ import Browser
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick)
 
+import Time exposing (Posix)
 
-main : Program () Model Msg
-main =
-  Browser.sandbox { init = init, update = update, view = view}
+import Task exposing (perform)
 
-type alias Model = Int
+-- Model
 
-init : Model
-init =
-  0
+type alias Model =
+  { log : List Posix
+  , zone : Maybe Time.Zone
+  }
 
+
+-- Msg
 
 type Msg
-  = Increment
-  | Decrement
+  = AddLogReq
+  | AddLog Posix
+  | ReceiveZone Time.Zone
 
 
-update : Msg -> Model -> Model
+init : a -> (Model, Cmd Msg)
+init _ =
+  let
+    model =
+      { log = []
+      , zone = Nothing
+      }
+  in
+    (model, perform ReceiveZone Time.here)
+
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    Increment -> model + 1
-    Decrement -> model - 1
+    AddLogReq -> (model, perform AddLog Time.now)
+    AddLog time -> ({ model | log = time :: model.log}, Cmd.none)
+    ReceiveZone zone -> ({ model | zone = Just zone}, Cmd.none)
+
+
+-- VIEW
 
 view : Model -> Html Msg
 view model =
-  div []
-    [ button [ onClick Decrement] [ text "-"]
-    , div [] [ text (String.fromInt model) ]
-    , button [ onClick Increment] [ text "+" ]
-    ]
+  let
+    logView = case model.zone of
+      Nothing -> []
+      Just zone -> List.map (viewTimeLog zone) model.log
+  in
+    div []
+      [ button [ onClick AddLogReq ] [ text "save" ]
+      , div [] logView
+      ]
+
+viewTimeLog : Time.Zone -> Posix -> Html Msg
+viewTimeLog zone log =
+    div [] [ text (formatPosix zone log) ]
+
+formatPosix : Time.Zone -> Posix -> String
+formatPosix zone posix =
+  let
+    toStringWithPad : Int -> String
+    toStringWithPad = String.fromInt >> String.padLeft 2 '0'
+    hour = toStringWithPad <| Time.toHour zone posix
+    minute = toStringWithPad <| Time.toMinute zone posix
+    second = toStringWithPad <| Time.toSecond zone posix
+  in
+    String.join ":" [hour, minute, second]
+
+
+
+-- MAIN
+
+main : Program () Model Msg
+main = Browser.element { init = init, update = update, view = view, subscriptions = (\_ -> Sub.none) }
