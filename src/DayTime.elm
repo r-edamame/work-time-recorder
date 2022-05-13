@@ -97,7 +97,21 @@ validateDayTime h m =
             Ok { hour = hourConsideredDayOver, minute = m, nextDay = nextDay }
 
 
-now : Task a (Maybe DayTime)
+throw : Task e (Result e a) -> Task e a
+throw task =
+    task
+        |> Task.andThen
+            (\r ->
+                case r of
+                    Ok a ->
+                        Task.succeed a
+
+                    Err e ->
+                        Task.fail e
+            )
+
+
+now : Task String DayTime
 now =
     let
         convert : Time.Zone -> Posix -> Result String DayTime
@@ -115,7 +129,7 @@ now =
         convert
         Time.here
         Time.now
-        |> Task.andThen (Result.toMaybe >> Task.succeed)
+        |> throw
 
 
 show : DayTime -> String
