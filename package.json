@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "elm-test",
-    "format": "elm-format ./src ./tests --yes"
+    "format": "elm-format ./src ./tests --yes",
+    "reactor": "elm reactor"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
     "elm-format": "^0.8.5"
   },
   "devDependencies": {
+    "elm": "^0.19.1-5",
     "elm-test": "^0.19.1-revision7"
   }
 }
